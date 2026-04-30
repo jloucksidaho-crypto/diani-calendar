@@ -1,0 +1,5 @@
+flask>=3.0
+requests>=2.31
+icalendar>=5.0
+pytz>=2024.1
+gunicorn>=22.0
