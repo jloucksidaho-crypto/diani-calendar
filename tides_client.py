@@ -1,25 +1,22 @@
-import json
 import os
 import time
-from pathlib import Path
 
 import requests
 
 _API_URL = "https://www.worldtides.info/api/v3"
 _DIANI_LAT = -4.3167
 _DIANI_LON = 39.5667
-_CACHE_FILE = Path("/tmp/tides_cache.json")
-_CACHE_TTL = 21600  # re-fetch every 6 hours
+_CACHE_TTL = 86400  # re-fetch once per day at most
+
+# In-memory cache — survives across requests within a single server session.
+# One API call per server restart (Render free tier restarts after inactivity),
+# which typically means 1-3 calls per day rather than one per 6-hour cache miss.
+_cache: dict = {"fetched_at": 0, "extremes": []}
 
 
 def get_tides() -> list:
-    if _CACHE_FILE.exists():
-        try:
-            cached = json.loads(_CACHE_FILE.read_text())
-            if time.time() - cached.get("fetched_at", 0) < _CACHE_TTL:
-                return cached["extremes"]
-        except (json.JSONDecodeError, KeyError):
-            pass
+    if _cache["extremes"] and time.time() - _cache["fetched_at"] < _CACHE_TTL:
+        return _cache["extremes"]
 
     resp = requests.get(
         _API_URL,
@@ -28,15 +25,13 @@ def get_tides() -> list:
             "lat": _DIANI_LAT,
             "lon": _DIANI_LON,
             "key": os.environ["WORLDTIDES_KEY"],
-            "days": 14,
+            "days": 30,  # fetch 30 days at once — one call covers a full month
         },
         timeout=15,
     )
     resp.raise_for_status()
     data = resp.json()
-    extremes = data.get("extremes", [])
 
-    _CACHE_FILE.write_text(
-        json.dumps({"fetched_at": time.time(), "extremes": extremes})
-    )
-    return extremes
+    _cache["extremes"] = data.get("extremes", [])
+    _cache["fetched_at"] = time.time()
+    return _cache["extremes"]
