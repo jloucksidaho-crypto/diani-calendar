@@ -1,37 +1,45 @@
-import os
+"""
+Serves tide data from a locally bundled tides_data.json file.
+No API calls are made during normal operation.
+Run generate_tides.py once a year to refresh the data file.
+"""
+
+import json
 import time
+from pathlib import Path
 
-import requests
+_DATA_FILE = Path(__file__).parent / "tides_data.json"
 
-_API_URL = "https://www.worldtides.info/api/v3"
-_DIANI_LAT = -4.3167
-_DIANI_LON = 39.5667
-_CACHE_TTL = 86400  # re-fetch once per day at most
-
-# In-memory cache — survives across requests within a single server session.
-# One API call per server restart (Render free tier restarts after inactivity),
-# which typically means 1-3 calls per day rather than one per 6-hour cache miss.
-_cache: dict = {"fetched_at": 0, "extremes": []}
+# Module-level cache — loaded once per server session
+_cache: list = []
 
 
 def get_tides() -> list:
-    if _cache["extremes"] and time.time() - _cache["fetched_at"] < _CACHE_TTL:
-        return _cache["extremes"]
+    global _cache
 
-    resp = requests.get(
-        _API_URL,
-        params={
-            "extremes": "",
-            "lat": _DIANI_LAT,
-            "lon": _DIANI_LON,
-            "key": os.environ["WORLDTIDES_KEY"],
-            "days": 30,  # fetch 30 days at once — one call covers a full month
-        },
-        timeout=15,
-    )
-    resp.raise_for_status()
-    data = resp.json()
+    if _cache:
+        return _cache
 
-    _cache["extremes"] = data.get("extremes", [])
-    _cache["fetched_at"] = time.time()
-    return _cache["extremes"]
+    if not _DATA_FILE.exists():
+        raise RuntimeError(
+            "tides_data.json not found. "
+            "Run generate_tides.py to create it, then commit the file to GitHub."
+        )
+
+    data = json.loads(_DATA_FILE.read_text())
+    now = time.time()
+
+    # Return only upcoming events (within the last hour and forward)
+    extremes = [e for e in data.get("extremes", []) if e.get("dt", 0) >= now - 3600]
+
+    # Log a warning when fewer than 30 days of data remain
+    if extremes:
+        days_left = (extremes[-1]["dt"] - now) / 86400
+        if days_left < 30:
+            print(
+                f"NOTICE: Tide data has {days_left:.0f} days remaining. "
+                "Run generate_tides.py soon and commit the updated tides_data.json."
+            )
+
+    _cache = extremes
+    return _cache
