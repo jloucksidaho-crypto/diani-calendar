@@ -74,7 +74,7 @@ def strava_auth():
             "client_id": client_id,
             "redirect_uri": callback_url,
             "response_type": "code",
-            "scope": "activity:read_all",
+            "scope": "read,activity:read",
         }
     )
     return redirect(f"https://www.strava.com/oauth/authorize?{params}")
