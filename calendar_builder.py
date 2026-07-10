@@ -108,16 +108,14 @@ def build_fitness_cal(activities: list) -> Calendar:
         if activity_id:
             desc_lines.append(f"\nhttps://connect.garmin.com/modern/activity/{activity_id}")
 
-        start_str = activity.get("startTimeLocal") or activity.get("startTimeGMT")
-        if not start_str:
-            continue
-
-        start_dt = datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S")
-        if "Local" in (activity.keys() and ["startTimeLocal"]):
-            start_dt = _NAIROBI.localize(start_dt)
+        start_str = activity.get("startTimeLocal")
+        if start_str:
+            start_dt = _NAIROBI.localize(datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S"))
         else:
-            import pytz
-            start_dt = pytz.utc.localize(start_dt).astimezone(_NAIROBI)
+            start_str = activity.get("startTimeGMT")
+            if not start_str:
+                continue
+            start_dt = pytz.utc.localize(datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S")).astimezone(_NAIROBI)
         end_dt = start_dt + timedelta(seconds=elapsed_time)
 
         event = Event()
