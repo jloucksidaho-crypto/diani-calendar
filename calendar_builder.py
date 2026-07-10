@@ -55,23 +55,24 @@ def _base_calendar(name: str, desc: str, ttl_minutes: int) -> Calendar:
 def build_fitness_cal(activities: list) -> Calendar:
     cal = _base_calendar(
         "Fitness Activities",
-        "Strava workouts synced automatically",
+        "Garmin workouts synced via Intervals.icu",
         30,
     )
 
     for activity in activities:
-        sport = activity.get("sport_type") or activity.get("type") or "Workout"
+        # Intervals.icu field names
+        sport = activity.get("type") or "Workout"
         emoji = _SPORT_EMOJI.get(sport, "🏅")
 
-        distance = activity.get("distance", 0)
-        moving_time = activity.get("moving_time", 0)
-        elapsed_time = activity.get("elapsed_time", 0) or moving_time
+        activity_id = activity.get("id", "")
+        activity_name = activity.get("name") or sport
+        distance = activity.get("distance") or 0
+        moving_time = activity.get("moving_time") or 0
+        elapsed_time = activity.get("elapsed_time") or moving_time
         avg_hr = activity.get("average_heartrate")
         max_hr = activity.get("max_heartrate")
-        calories = activity.get("calories") or activity.get("kilojoules")
+        calories = activity.get("calories")
         elevation = activity.get("total_elevation_gain")
-        strava_id = activity.get("id")
-        activity_name = activity.get("name", sport)
 
         # Compact summary line shown as the calendar event title
         summary_parts = [f"{emoji} {sport}"]
@@ -99,13 +100,19 @@ def build_fitness_cal(activities: list) -> Calendar:
             desc_lines.append(f"Max heart rate: {int(max_hr)} bpm")
         if calories:
             desc_lines.append(f"Calories: {int(calories)}")
-        if strava_id:
-            desc_lines.append(f"\nhttps://www.strava.com/activities/{strava_id}")
+        if activity_id:
+            desc_lines.append(f"\nhttps://intervals.icu/activities/{activity_id}")
 
-        start_str = activity.get("start_date")
+        start_str = activity.get("start_date_local") or activity.get("start_date")
         if not start_str:
             continue
-        start_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00")).astimezone(_NAIROBI)
+
+        start_str_clean = start_str.replace("Z", "+00:00")
+        start_dt = datetime.fromisoformat(start_str_clean)
+        if start_dt.tzinfo is None:
+            start_dt = _NAIROBI.localize(start_dt)
+        else:
+            start_dt = start_dt.astimezone(_NAIROBI)
         end_dt = start_dt + timedelta(seconds=elapsed_time)
 
         event = Event()
@@ -113,7 +120,7 @@ def build_fitness_cal(activities: list) -> Calendar:
         event.add("dtstart", start_dt)
         event.add("dtend", end_dt)
         event.add("description", "\n".join(desc_lines))
-        event.add("uid", f"strava-{strava_id}@diani-calendar")
+        event.add("uid", f"intervals-{activity_id}@diani-calendar")
         cal.add_component(event)
 
     return cal
