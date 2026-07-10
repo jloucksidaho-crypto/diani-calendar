@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytz
 from icalendar import Calendar, Event
@@ -108,14 +108,19 @@ def build_fitness_cal(activities: list) -> Calendar:
         if activity_id:
             desc_lines.append(f"\nhttps://connect.garmin.com/modern/activity/{activity_id}")
 
-        start_str = activity.get("startTimeLocal")
-        if start_str:
-            start_dt = _NAIROBI.localize(datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S"))
+        local_str = activity.get("startTimeLocal")
+        gmt_str = activity.get("startTimeGMT")
+        if not local_str and not gmt_str:
+            continue
+
+        if local_str and gmt_str:
+            local_dt = datetime.strptime(local_str, "%Y-%m-%d %H:%M:%S")
+            gmt_dt = datetime.strptime(gmt_str, "%Y-%m-%d %H:%M:%S")
+            start_dt = local_dt.replace(tzinfo=timezone(local_dt - gmt_dt))
+        elif local_str:
+            start_dt = _NAIROBI.localize(datetime.strptime(local_str, "%Y-%m-%d %H:%M:%S"))
         else:
-            start_str = activity.get("startTimeGMT")
-            if not start_str:
-                continue
-            start_dt = pytz.utc.localize(datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S")).astimezone(_NAIROBI)
+            start_dt = pytz.utc.localize(datetime.strptime(gmt_str, "%Y-%m-%d %H:%M:%S"))
         end_dt = start_dt + timedelta(seconds=elapsed_time)
 
         event = Event()

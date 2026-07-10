@@ -21,7 +21,7 @@ def _get_client() -> Garmin:
     return _api
 
 
-def get_activities(count: int = 60) -> list:
+def get_activities(count: int = 200) -> list:
     global _api
     if _cache["activities"] and time.time() - _cache["fetched_at"] < _CACHE_TTL:
         return _cache["activities"]
