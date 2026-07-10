@@ -29,7 +29,7 @@ def _get_client() -> Garmin:
     (_GARTH_DIR / "oauth2_token.json").write_text(json.dumps(tokens["oauth2"]))
 
     _api = Garmin()
-    _api.garth.load(str(_GARTH_DIR))
+    _api.login(tokenstore=str(_GARTH_DIR))
 
     return _api
 
