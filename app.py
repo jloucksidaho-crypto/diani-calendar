@@ -5,7 +5,7 @@ import requests
 from flask import Flask, Response, redirect, request, url_for
 
 from calendar_builder import build_fitness_cal, build_tides_cal
-from intervals_client import get_activities
+from garmin_client import get_activities
 from tides_client import get_tides
 
 app = Flask(__name__)

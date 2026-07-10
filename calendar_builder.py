@@ -6,28 +6,31 @@ from icalendar import Calendar, Event
 _NAIROBI = pytz.timezone("Africa/Nairobi")
 
 _SPORT_EMOJI = {
-    "Run": "🏃",
-    "TrailRun": "🏃",
-    "Ride": "🚴",
-    "MountainBikeRide": "🚵",
-    "VirtualRide": "🚴",
-    "Swim": "🏊",
-    "Walk": "🚶",
-    "Hike": "🥾",
-    "WeightTraining": "🏋️",
-    "Yoga": "🧘",
-    "Surf": "🏄",
-    "Kayaking": "🚣",
-    "StandUpPaddling": "🏄",
-    "Workout": "💪",
-    "CrossFit": "💪",
-    "Tennis": "🎾",
-    "Soccer": "⚽",
-    "Golf": "⛳",
-    "Rowing": "🚣",
-    "Kitesurf": "🪁",
-    "Windsurf": "🏄",
-    "Snorkeling": "🤿",
+    # Garmin type keys (snake_case)
+    "running": "🏃",
+    "trail_running": "🏃",
+    "cycling": "🚴",
+    "mountain_biking": "🚵",
+    "virtual_cycling": "🚴",
+    "swimming": "🏊",
+    "open_water_swimming": "🏊",
+    "walking": "🚶",
+    "hiking": "🥾",
+    "strength_training": "🏋️",
+    "yoga": "🧘",
+    "surfing": "🏄",
+    "kayaking": "🚣",
+    "stand_up_paddleboarding": "🏄",
+    "fitness_equipment": "💪",
+    "tennis": "🎾",
+    "soccer": "⚽",
+    "golf": "⛳",
+    "rowing": "🚣",
+    "kiteboarding": "🪁",
+    "windsurfing": "🏄",
+    "snorkeling": "🤿",
+    "breathwork": "🧘",
+    "indoor_cardio": "💪",
 }
 
 
@@ -60,22 +63,24 @@ def build_fitness_cal(activities: list) -> Calendar:
     )
 
     for activity in activities:
-        # Intervals.icu field names
-        sport = activity.get("type") or "Workout"
-        emoji = _SPORT_EMOJI.get(sport, "🏅")
+        # Garmin field names via garminconnect library
+        type_info = activity.get("activityType") or {}
+        sport_key = type_info.get("typeKey") or "running"
+        sport_label = sport_key.replace("_", " ").title()
+        emoji = _SPORT_EMOJI.get(sport_key, "🏅")
 
-        activity_id = activity.get("id", "")
-        activity_name = activity.get("name") or sport
+        activity_id = activity.get("activityId", "")
+        activity_name = activity.get("activityName") or sport_label
         distance = activity.get("distance") or 0
-        moving_time = activity.get("moving_time") or 0
-        elapsed_time = activity.get("elapsed_time") or moving_time
-        avg_hr = activity.get("average_heartrate")
-        max_hr = activity.get("max_heartrate")
+        moving_time = activity.get("movingDuration") or activity.get("duration") or 0
+        elapsed_time = activity.get("duration") or moving_time
+        avg_hr = activity.get("averageHR")
+        max_hr = activity.get("maxHR")
         calories = activity.get("calories")
-        elevation = activity.get("total_elevation_gain")
+        elevation = activity.get("elevationGain")
 
         # Compact summary line shown as the calendar event title
-        summary_parts = [f"{emoji} {sport}"]
+        summary_parts = [f"{emoji} {sport_label}"]
         if distance:
             summary_parts.append(_fmt_distance(distance))
         if moving_time:
@@ -101,18 +106,18 @@ def build_fitness_cal(activities: list) -> Calendar:
         if calories:
             desc_lines.append(f"Calories: {int(calories)}")
         if activity_id:
-            desc_lines.append(f"\nhttps://intervals.icu/activities/{activity_id}")
+            desc_lines.append(f"\nhttps://connect.garmin.com/modern/activity/{activity_id}")
 
-        start_str = activity.get("start_date_local") or activity.get("start_date")
+        start_str = activity.get("startTimeLocal") or activity.get("startTimeGMT")
         if not start_str:
             continue
 
-        start_str_clean = start_str.replace("Z", "+00:00")
-        start_dt = datetime.fromisoformat(start_str_clean)
-        if start_dt.tzinfo is None:
+        start_dt = datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S")
+        if "Local" in (activity.keys() and ["startTimeLocal"]):
             start_dt = _NAIROBI.localize(start_dt)
         else:
-            start_dt = start_dt.astimezone(_NAIROBI)
+            import pytz
+            start_dt = pytz.utc.localize(start_dt).astimezone(_NAIROBI)
         end_dt = start_dt + timedelta(seconds=elapsed_time)
 
         event = Event()
@@ -120,7 +125,7 @@ def build_fitness_cal(activities: list) -> Calendar:
         event.add("dtstart", start_dt)
         event.add("dtend", end_dt)
         event.add("description", "\n".join(desc_lines))
-        event.add("uid", f"intervals-{activity_id}@diani-calendar")
+        event.add("uid", f"garmin-{activity_id}@diani-calendar")
         cal.add_component(event)
 
     return cal
