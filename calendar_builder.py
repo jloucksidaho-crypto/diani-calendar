@@ -165,7 +165,7 @@ def build_tides_cal(extremes: list) -> Calendar:
         event = Event()
         event.add("summary", summary)
         event.add("dtstart", dt)
-        event.add("dtend", dt + timedelta(minutes=30))
+        event.add("dtend", dt + timedelta(hours=24))
         event.add("description", description)
         event.add("uid", f"tide-{dt_unix}@diani-calendar")
         cal.add_component(event)
